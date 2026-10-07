@@ -114,12 +114,17 @@ class ConfigNode:
 
 
 class LLMConfig(ConfigNode):
+    persona_id: str
     post_provider_id: str
     post_prompt: str
     comment_provider_id: str
     comment_prompt: str
     reply_provider_id: str
     reply_prompt: str
+
+    def __init__(self, data: MutableMapping[str, Any]):
+        data.setdefault("persona_id", "")
+        super().__init__(data)
 
 
 class SourceConfig(ConfigNode):

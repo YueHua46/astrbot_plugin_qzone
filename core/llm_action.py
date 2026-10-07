@@ -111,6 +111,23 @@ class LLMAction:
     async def _get_persona_context(
         self, event: Any | None
     ) -> tuple[str, list[dict[str, Any]]]:
+        fixed_persona_id = str(self.cfg.llm.persona_id or "").strip()
+        if fixed_persona_id:
+            try:
+                # Look up the manager's current data for every generation; do not
+                # cache a copy that would become stale after a persona edit.
+                persona = self.context.persona_manager.get_persona_v3_by_id(
+                    fixed_persona_id
+                )
+                if not persona:
+                    raise ValueError("人格不存在")
+                return self._persona_context(persona)
+            except Exception as e:
+                raise ValueError(
+                    f"无法加载 QQ空间固定人格 {fixed_persona_id!r}，"
+                    "已停止本次生成，请检查 LLM 模块中的固定人格 ID。"
+                ) from e
+
         if not event:
             return "", []
 
@@ -146,12 +163,16 @@ class LLMAction:
             if not persona:
                 return "", []
 
-            persona_prompt = str(persona.get("prompt") or "").strip()
-            begin_dialogs = copy.deepcopy(persona.get("_begin_dialogs_processed") or [])
-            return persona_prompt, begin_dialogs
+            return self._persona_context(persona)
         except Exception as e:
             logger.warning(f"解析当前会话人格失败，将回退到插件默认任务提示词: {e}")
             return "", []
+
+    @staticmethod
+    def _persona_context(persona: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+        persona_prompt = str(persona.get("prompt") or "").strip()
+        begin_dialogs = copy.deepcopy(persona.get("_begin_dialogs_processed") or [])
+        return persona_prompt, begin_dialogs
 
     async def _build_request_context(
         self,
