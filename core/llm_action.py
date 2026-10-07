@@ -111,8 +111,16 @@ class LLMAction:
     async def _get_persona_context(
         self, event: Any | None
     ) -> tuple[str, list[dict[str, Any]]]:
-        fixed_persona_id = str(self.cfg.llm.persona_id or "").strip()
-        if fixed_persona_id:
+        mode = self.cfg.llm.persona_mode
+        if mode == "不使用人格":
+            return "", []
+        if mode not in {"跟随会话人格", "使用指定人格"}:
+            raise ValueError("QQ空间人格模式无效，请重新选择人格模式。")
+
+        if mode == "使用指定人格":
+            fixed_persona_id = str(self.cfg.llm.persona_id or "").strip()
+            if not fixed_persona_id:
+                return "", []
             try:
                 # Look up the manager's current data for every generation; do not
                 # cache a copy that would become stale after a persona edit.
@@ -125,7 +133,7 @@ class LLMAction:
             except Exception as e:
                 raise ValueError(
                     f"无法加载 QQ空间固定人格 {fixed_persona_id!r}，"
-                    "已停止本次生成，请检查 LLM 模块中的固定人格 ID。"
+                    "已停止本次生成，请在 LLM 模块中重新选择指定人格。"
                 ) from e
 
         if not event:

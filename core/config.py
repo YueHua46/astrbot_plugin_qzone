@@ -114,6 +114,7 @@ class ConfigNode:
 
 
 class LLMConfig(ConfigNode):
+    persona_mode: str
     persona_id: str
     post_provider_id: str
     post_prompt: str
@@ -124,6 +125,9 @@ class LLMConfig(ConfigNode):
 
     def __init__(self, data: MutableMapping[str, Any]):
         data.setdefault("persona_id", "")
+        data.setdefault(
+            "persona_mode", "使用指定人格" if data["persona_id"] else "跟随会话人格"
+        )
         super().__init__(data)
 
 

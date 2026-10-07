@@ -1,6 +1,8 @@
 """Run in an AstrBot environment: python -m unittest discover -s tests -v."""
 
 import unittest
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -38,6 +40,7 @@ class FixedPersonaTests(unittest.IsolatedAsyncioTestCase):
         self.llm_cfg = LLMConfig(
             {
                 "persona_id": "alice",
+                "persona_mode": "使用指定人格",
                 "post_provider_id": "",
                 "post_prompt": "Write a post",
                 "comment_provider_id": "",
@@ -79,12 +82,30 @@ class FixedPersonaTests(unittest.IsolatedAsyncioTestCase):
             await self.action._get_persona_context(None)
 
     async def test_blank_persona_keeps_session_and_scheduler_behavior(self):
+        self.llm_cfg.persona_mode = "跟随会话人格"
         self.llm_cfg.persona_id = "  "
         self.assertEqual(await self.action._get_persona_context(None), ("", []))
         prompt, _ = await self.action._get_persona_context(self.event)
         self.assertEqual(prompt, self.persona["prompt"])
         self.manager.resolve_selected_persona.assert_awaited_once()
         self.manager.get_persona_v3_by_id.assert_not_called()
+
+    async def test_disabled_persona_ignores_saved_selection_and_session(self):
+        self.llm_cfg.persona_mode = "不使用人格"
+        for event in (None, self.event):
+            self.assertEqual(await self.action._get_persona_context(event), ("", []))
+        self.manager.get_persona_v3_by_id.assert_not_called()
+        self.manager.resolve_selected_persona.assert_not_awaited()
+
+    async def test_unselected_fixed_persona_does_not_use_session(self):
+        self.llm_cfg.persona_id = ""
+        self.assertEqual(await self.action._get_persona_context(self.event), ("", []))
+        self.manager.resolve_selected_persona.assert_not_awaited()
+
+    async def test_invalid_mode_stops_generation(self):
+        self.llm_cfg.persona_mode = "invalid"
+        with self.assertRaisesRegex(ValueError, "人格模式无效"):
+            await self.action._get_persona_context(self.event)
 
     async def test_task_and_history_preserved_without_mutating_persona(self):
         history = [{"role": "user", "content": "Group history"}]
@@ -118,6 +139,21 @@ class FixedPersonaTests(unittest.IsolatedAsyncioTestCase):
             )
 
     def test_existing_config_gets_empty_default(self):
-        raw = {k: v for k, v in self.llm_cfg.raw_data().items() if k != "persona_id"}
+        raw = {
+            k: v for k, v in self.llm_cfg.raw_data().items()
+            if k not in {"persona_id", "persona_mode"}
+        }
         self.assertEqual(LLMConfig(raw).persona_id, "")
         self.assertEqual(raw["persona_id"], "")
+        self.assertEqual(raw["persona_mode"], "跟随会话人格")
+
+    def test_previous_fixed_persona_config_migrates(self):
+        raw = {k: v for k, v in self.llm_cfg.raw_data().items() if k != "persona_mode"}
+        self.assertEqual(LLMConfig(raw).persona_mode, "使用指定人格")
+
+    def test_schema_uses_native_persona_selector(self):
+        schema = json.loads(
+            (Path(__file__).resolve().parents[1] / "_conf_schema.json").read_text()
+        )["llm"]["items"]
+        self.assertEqual(schema["persona_id"]["_special"], "select_persona")
+        self.assertEqual(schema["persona_mode"]["default"], "跟随会话人格")

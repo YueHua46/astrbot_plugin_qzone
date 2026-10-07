@@ -21,11 +21,19 @@
         "type": "object",
         "hint": "",
         "items": {
-            "persona_id": {
-                "description": "固定人格 ID",
-                "hint": "填写 AstrBot 中已有的人格 ID 后，AI 写说说、评论和回评（含定时任务）统一使用该人格，并随人格编辑同步更新。留空保持原行为：聊天触发跟随会话人格，定时任务只使用任务提示词。指定人格不存在时停止本次生成。",
+            "persona_mode": {
+                "description": "人格模式",
+                "hint": "跟随会话人格：聊天触发使用会话人格，定时任务不使用人格。使用指定人格：聊天和定时任务统一使用下方选择的人格，未选择时不使用人格。不使用人格：仅使用插件任务提示词。",
                 "type": "string",
-                "default": ""
+                "options": ["跟随会话人格", "使用指定人格", "不使用人格"],
+                "default": "跟随会话人格"
+            },
+            "persona_id": {
+                "description": "指定人格",
+                "hint": "仅在“使用指定人格”模式生效。从 AstrBot 已有人格中选择，修改人设后下次生成自动同步。未选择时不使用人格；已选择的人格被删除或读取失败时停止本次生成。",
+                "type": "string",
+                "default": "",
+                "_special": "select_persona"
             },
             "post_provider_id": {
                 "description": "写说说用的LLM提供商",
